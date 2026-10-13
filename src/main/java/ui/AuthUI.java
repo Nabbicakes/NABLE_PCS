@@ -46,7 +46,9 @@ public class AuthUI {
 
     private void register() {
         try {
-            System.out.println("\n=== PET OWNER REGISTRATION ===");
+            System.out.println("======================================");
+            System.out.println("|        PET OWNER REGISTRATION      |");
+            System.out.println("======================================");
 
             System.out.print("Enter username: ");
             String username = scanner.nextLine().trim();
