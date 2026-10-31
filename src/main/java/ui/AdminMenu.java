@@ -26,8 +26,8 @@ public class AdminMenu {
             System.out.println("|               ADMIN                |");
             System.out.println("======================================");
             System.out.println("| 1. Create Staff Account            |");
-            System.out.println("| 2. Approve Pet Owner Accounts      |");
-            System.out.println("| 3. View Registered Users           |");
+            System.out.println("| 2. View Pending Registrations      |");
+            System.out.println("| 3. View All System Users           |");
             System.out.println("| 4. View Activity Logs              |");
             System.out.println("| 5. Logout                          |");
             System.out.println("| 6. Exit                            |");
@@ -40,28 +40,31 @@ public class AdminMenu {
                 case "1":
                     createStaffAccount();
                     break;
+
                 case "2":
                     manageUserAccounts();
                     break;
+
                 case "3":
-                    System.out.println(
-                            "View Registered Users is not implemented yet."
-                    );
+                    viewAllUsers();
                     break;
+
                 case "4":
                     System.out.println(
                             "View Activity Logs is not implemented yet."
                     );
                     break;
+
                 case "5":
                     System.out.println("Logged out successfully!");
                     return;
+
                 case "6":
                     System.out.println(
                             "Thank you for using Pet Clinic System!"
                     );
-                    System.exit(0);
                     return;
+
                 default:
                     System.out.println("Invalid choice. Try again.");
             }
@@ -100,10 +103,9 @@ public class AdminMenu {
                 System.out.println("Staff account created successfully!");
                 System.out.println("Username: " + username);
                 System.out.println("Role: Staff");
-                System.out.println("Status: Active");
+                System.out.println("Status: APPROVED");
                 System.out.println(
                         "Give the login credentials to the employee privately."
-
                 );
                 System.out.println("======================================");
             } else {
@@ -117,11 +119,14 @@ public class AdminMenu {
         }
     }
 
+    // View all pending registrations and approve an account
     private void manageUserAccounts() {
         try {
             List<User> pendingUsers = userDao.getPendingUsers();
+
+            System.out.println();
             System.out.println("======================================");
-            System.out.println("|        PENDING USER ACCOUNTS       |");
+            System.out.println("|        PENDING REGISTRATIONS       |");
             System.out.println("======================================");
 
             if (pendingUsers.isEmpty()) {
@@ -129,22 +134,14 @@ public class AdminMenu {
                 return;
             }
 
-            for (User pendingUser : pendingUsers) {
-                System.out.println("======================================");
-                System.out.println(
-                        "ID: " + pendingUser.userId()
-                                + " | Username: " + pendingUser.username()
-                                + " | Role: " + pendingUser.role()
-                                + " | Status: " + pendingUser.status()
-                );
-                System.out.println("======================================");
-            }
+            displayUserTable(pendingUsers);
 
             System.out.print(
-                    "\nEnter the user ID to approve (0 to cancel): "
+                    "\nEnter the User ID to approve (0 to cancel): "
             );
 
             String input = scanner.nextLine().trim();
+
             int userId;
 
             try {
@@ -169,7 +166,7 @@ public class AdminMenu {
                 return;
             }
 
-            if (userDao.activateUser(userId)) {
+            if (userDao.approveUser(userId)) {
                 System.out.println("Account approved successfully!");
                 System.out.println("The user can now log in.");
             } else {
@@ -179,5 +176,56 @@ public class AdminMenu {
         } catch (SQLException e) {
             System.out.println("Database error: " + e.getMessage());
         }
+    }
+
+    // View all registered users regardless of role or status
+    private void viewAllUsers() {
+        try {
+            List<User> users = userDao.getAllUsers();
+
+            System.out.println();
+            System.out.println("======================================");
+            System.out.println("|          ALL SYSTEM USERS          |");
+            System.out.println("======================================");
+
+            if (users.isEmpty()) {
+                System.out.println("No registered users found.");
+                return;
+            }
+
+            displayUserTable(users);
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
+        }
+    }
+
+    // Display users in a formatted table
+    private void displayUserTable(List<User> users) {
+        String border = "+-------+-----------------+--------------+------------+";
+
+        System.out.println(border);
+
+        System.out.printf(
+                "| %-5s | %-15s | %-12s | %-10s |%n",
+                "ID",
+                "USERNAME",
+                "ROLE",
+                "STATUS"
+        );
+
+        System.out.println(border);
+
+        for (User user : users) {
+            System.out.printf(
+                    "| %-5d | %-15s | %-12s | %-10s |%n",
+                    user.userId(),
+                    user.username(),
+                    user.role(),
+                    user.status()
+            );
+        }
+
+        System.out.println(border);
     }
 }
