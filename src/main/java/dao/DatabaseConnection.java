@@ -11,7 +11,15 @@ public class DatabaseConnection {
     private static final String URL = "jdbc:sqlite:PetClinic.db";
 
     public static Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(URL);
+        Connection connection = DriverManager.getConnection(URL);
+
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("PRAGMA foreign_keys = ON;");
+            return connection;
+        } catch (SQLException e) {
+            connection.close();
+            throw e;
+        }
     }
 
     public static void initializeDatabase() throws SQLException {

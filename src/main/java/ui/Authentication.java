@@ -1,4 +1,3 @@
-
 package ui;
 
 import dao.UserDao;
@@ -7,12 +6,17 @@ import model.User;
 import java.sql.SQLException;
 import java.util.Scanner;
 
-public class AuthUI {
+public class Authentication {
 
-    private final Scanner scanner = new Scanner(System.in);
-    private final UserDao userDao = new UserDao();
+    private final UserDao userDao;
+    private final Scanner scanner;
 
-    public void showMenu() {
+    public Authentication(UserDao userDao, Scanner scanner) {
+        this.userDao = userDao;
+        this.scanner = scanner;
+    }
+
+    public void start() {
         while (true) {
             System.out.println("======================================");
             System.out.println("|          PET CLINIC SYSTEM         |");
@@ -26,20 +30,15 @@ public class AuthUI {
             String choice = scanner.nextLine();
 
             switch (choice) {
-                case "1":
-                    register();
-                    break;
-
-                case "2":
-                    login();
-                    break;
-
-                case "3":
-                    System.out.println("Thank you for using Pet Clinic System!");
+                case "1" -> register();
+                case "2" -> login();
+                case "3" -> {
+                    System.out.println(
+                            "Thank you for using Pet Clinic System!"
+                    );
                     return;
-
-                default:
-                    System.out.println("Invalid choice. Try again.");
+                }
+                default -> System.out.println("Invalid choice. Try again.");
             }
         }
     }
@@ -57,7 +56,9 @@ public class AuthUI {
             String password = scanner.nextLine();
 
             if (username.isEmpty() || password.isEmpty()) {
-                System.out.println("Username and password are required.");
+                System.out.println(
+                        "Username and password are required."
+                );
                 return;
             }
 
@@ -76,7 +77,9 @@ public class AuthUI {
 
             if (userDao.registerUser(user)) {
                 System.out.println("Registration successful!");
-                System.out.println("Your account is pending approval.");
+                System.out.println(
+                        "Your account is pending approval."
+                );
             } else {
                 System.out.println("Registration failed.");
             }
@@ -86,11 +89,10 @@ public class AuthUI {
         }
     }
 
-
     private void login() {
         try {
             System.out.print("Enter username: ");
-            String username = scanner.nextLine();
+            String username = scanner.nextLine().trim();
 
             System.out.print("Enter password: ");
             String password = scanner.nextLine();
@@ -115,7 +117,5 @@ public class AuthUI {
             System.out.println("Database error: " + e.getMessage());
         }
     }
-
 }
-
 

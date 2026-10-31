@@ -1,15 +1,19 @@
 
 package ui;
 
+import dao.UserDao;
 import model.User;
+
 import java.util.Scanner;
 
 public class PetOwnerMenu {
 
     private final Scanner scanner;
+    private final UserDao userDao;
 
-    public PetOwnerMenu() {
-        scanner = new Scanner(System.in);
+    public PetOwnerMenu(Scanner scanner, UserDao userDao) {
+        this.scanner = scanner;
+        this.userDao = userDao;
     }
 
     public void showMenu(User user) {
@@ -40,7 +44,6 @@ public class PetOwnerMenu {
                     return;
                 case "4":
                     System.out.println("Thank you for using Pet Clinic System!");
-                    System.exit(0);
                     return;
                 default:
                     System.out.println("Invalid choice. Try again.");

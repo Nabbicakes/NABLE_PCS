@@ -26,12 +26,13 @@ public class RoleMenu {
                 break;
 
             case "staff":
-                StaffMenu staffMenu = new StaffMenu(scanner);
+                StaffMenu staffMenu = new StaffMenu(scanner, userDao);
                 staffMenu.showMenu(user);
                 break;
 
             case "pet owner":
-                PetOwnerMenu petOwnerMenu = new PetOwnerMenu();
+                PetOwnerMenu petOwnerMenu =
+                        new PetOwnerMenu(scanner, userDao);
                 petOwnerMenu.showMenu(user);
                 break;
 
