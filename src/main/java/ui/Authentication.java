@@ -1,3 +1,4 @@
+
 package ui;
 
 import dao.UserDao;
@@ -72,13 +73,16 @@ public class Authentication {
                     username,
                     password,
                     "Pet Owner",
-                    "Pending"
+                    "Inactive"
             );
 
             if (userDao.registerUser(user)) {
                 System.out.println("Registration successful!");
                 System.out.println(
-                        "Your account is pending approval."
+                        "Your account is currently Inactive."
+                );
+                System.out.println(
+                        "Please wait for the Admin to activate your account."
                 );
             } else {
                 System.out.println("Registration failed.");
@@ -101,7 +105,7 @@ public class Authentication {
 
             if (user == null) {
                 System.out.println(
-                        "Invalid username, password, or account pending approval."
+                        "Invalid username, password, or inactive account."
                 );
                 return;
             }
@@ -118,4 +122,3 @@ public class Authentication {
         }
     }
 }
-

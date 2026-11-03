@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class UserDao {
 
@@ -54,11 +55,7 @@ public class UserDao {
         }
 
         User staff = new User(
-                0,
-                username,
-                password,
-                "Staff",
-                "APPROVED"
+                0, username, password, "Staff", "Active"
         );
 
         return registerUser(staff);
@@ -80,7 +77,7 @@ public class UserDao {
                     String status = result.getString("status");
 
                     if (PasswordUtil.checkPassword(password, hashedPassword)
-                            && "APPROVED".equalsIgnoreCase(status)) {
+                            && "Active".equalsIgnoreCase(status)) {
 
                         return new User(
                                 result.getInt("user_id"),
@@ -124,13 +121,13 @@ public class UserDao {
         return users;
     }
 
-    public List<User> getPendingUsers() throws SQLException {
+    public List<User> getInactiveUsers() throws SQLException {
         List<User> users = new ArrayList<>();
 
         String sql = """
                 SELECT user_id, username, password, role, status
                 FROM Users
-                WHERE UPPER(status) = 'PENDING'
+                WHERE LOWER(status) = 'inactive'
                 ORDER BY user_id
                 """;
 
@@ -152,27 +149,63 @@ public class UserDao {
         return users;
     }
 
-    public boolean approveUser(int userId) throws SQLException {
+    public boolean updateUserRoleAndStatus(
+            int userId, String newRole, String newStatus)
+            throws SQLException {
+
+        String role = normalizeRole(newRole);
+        String status = normalizeStatus(newStatus);
+
+        if (role == null || status == null) {
+            return false;
+        }
+
         String sql = """
                 UPDATE Users
-                SET status = 'APPROVED'
-                WHERE user_id = ? AND UPPER(status) = 'PENDING'
+                SET role = ?, status = ?
+                WHERE user_id = ?
                 """;
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setInt(1, userId);
+            statement.setString(1, role);
+            statement.setString(2, status);
+            statement.setInt(3, userId);
 
             return statement.executeUpdate() == 1;
         }
+    }
+
+    private String normalizeRole(String role) {
+        if (role == null) {
+            return null;
+        }
+
+        return switch (role.trim().toLowerCase(Locale.ROOT)) {
+            case "admin" -> "Admin";
+            case "staff" -> "Staff";
+            case "pet owner" -> "Pet Owner";
+            default -> null;
+        };
+    }
+
+    private String normalizeStatus(String status) {
+        if (status == null) {
+            return null;
+        }
+
+        return switch (status.trim().toLowerCase(Locale.ROOT)) {
+            case "active" -> "Active";
+            case "inactive" -> "Inactive";
+            default -> null;
+        };
     }
 
     public boolean createTemporaryAdmin() throws SQLException {
         String username = "admin";
 
         if (usernameExists(username)) {
-
             String updateSql = """
                     UPDATE Users
                     SET status = ?, role = ?
@@ -182,7 +215,7 @@ public class UserDao {
             try (Connection connection = DatabaseConnection.getConnection();
                  PreparedStatement statement = connection.prepareStatement(updateSql)) {
 
-                statement.setString(1, "APPROVED");
+                statement.setString(1, "Active");
                 statement.setString(2, "Admin");
                 statement.setString(3, username);
 
@@ -190,7 +223,6 @@ public class UserDao {
             }
 
         } else {
-
             String insertSql = """
                     INSERT INTO Users (username, password, role, status)
                     VALUES (?, ?, ?, ?)
@@ -202,7 +234,7 @@ public class UserDao {
                 statement.setString(1, username);
                 statement.setString(2, PasswordUtil.hashPassword("12345"));
                 statement.setString(3, "Admin");
-                statement.setString(4, "APPROVED");
+                statement.setString(4, "Active");
 
                 return statement.executeUpdate() == 1;
             }

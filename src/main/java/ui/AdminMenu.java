@@ -26,47 +26,35 @@ public class AdminMenu {
             System.out.println("|               ADMIN                |");
             System.out.println("======================================");
             System.out.println("| 1. Create Staff Account            |");
-            System.out.println("| 2. View Pending Registrations      |");
+            System.out.println("| 2. View Inactive Accounts          |");
             System.out.println("| 3. View All System Users           |");
-            System.out.println("| 4. View Activity Logs              |");
-            System.out.println("| 5. Logout                          |");
-            System.out.println("| 6. Exit                            |");
+            System.out.println("| 4. Update User Account              |");
+            System.out.println("| 5. View Activity Logs              |");
+            System.out.println("| 6. Logout                          |");
+            System.out.println("| 7. Exit                            |");
             System.out.println("======================================");
-            System.out.print("Choose an option: ");
 
-            String choice = scanner.nextLine();
+            int choice = readIntInput("Choose an option: ");
 
             switch (choice) {
-                case "1":
-                    createStaffAccount();
-                    break;
-
-                case "2":
-                    manageUserAccounts();
-                    break;
-
-                case "3":
-                    viewAllUsers();
-                    break;
-
-                case "4":
-                    System.out.println(
-                            "View Activity Logs is not implemented yet."
-                    );
-                    break;
-
-                case "5":
+                case 1 -> createStaffAccount();
+                case 2 -> viewInactiveAccounts();
+                case 3 -> viewAllUsers();
+                case 4 -> updateUserAccount(user);
+                case 5 -> System.out.println(
+                        "View Activity Logs is not implemented yet."
+                );
+                case 6 -> {
                     System.out.println("Logged out successfully!");
                     return;
-
-                case "6":
+                }
+                case 7 -> {
                     System.out.println(
                             "Thank you for using Pet Clinic System!"
                     );
                     return;
-
-                default:
-                    System.out.println("Invalid choice. Try again.");
+                }
+                default -> System.out.println("Invalid choice. Try again.");
             }
         }
     }
@@ -94,20 +82,14 @@ public class AdminMenu {
             }
 
             boolean created = userDao.createStaffAccount(
-                    username,
-                    password
+                    username, password
             );
 
             if (created) {
-                System.out.println("======================================");
                 System.out.println("Staff account created successfully!");
                 System.out.println("Username: " + username);
                 System.out.println("Role: Staff");
-                System.out.println("Status: APPROVED");
-                System.out.println(
-                        "Give the login credentials to the employee privately."
-                );
-                System.out.println("======================================");
+                System.out.println("Status: Active");
             } else {
                 System.out.println(
                         "That username already exists. Please try another."
@@ -119,66 +101,27 @@ public class AdminMenu {
         }
     }
 
-    // View all pending registrations and approve an account
-    private void manageUserAccounts() {
+    private void viewInactiveAccounts() {
         try {
-            List<User> pendingUsers = userDao.getPendingUsers();
+            List<User> inactiveUsers = userDao.getInactiveUsers();
 
             System.out.println();
             System.out.println("======================================");
-            System.out.println("|        PENDING REGISTRATIONS       |");
+            System.out.println("|          INACTIVE ACCOUNTS         |");
             System.out.println("======================================");
 
-            if (pendingUsers.isEmpty()) {
-                System.out.println("There are no pending accounts.");
+            if (inactiveUsers.isEmpty()) {
+                System.out.println("There are no inactive accounts.");
                 return;
             }
 
-            displayUserTable(pendingUsers);
-
-            System.out.print(
-                    "\nEnter the User ID to approve (0 to cancel): "
-            );
-
-            String input = scanner.nextLine().trim();
-
-            int userId;
-
-            try {
-                userId = Integer.parseInt(input);
-            } catch (NumberFormatException e) {
-                System.out.println("Please enter a valid numeric ID.");
-                return;
-            }
-
-            if (userId == 0) {
-                System.out.println("Approval cancelled.");
-                return;
-            }
-
-            boolean isPending = pendingUsers.stream()
-                    .anyMatch(account -> account.userId() == userId);
-
-            if (!isPending) {
-                System.out.println(
-                        "That ID is not in the pending accounts list."
-                );
-                return;
-            }
-
-            if (userDao.approveUser(userId)) {
-                System.out.println("Account approved successfully!");
-                System.out.println("The user can now log in.");
-            } else {
-                System.out.println("Account could not be approved.");
-            }
+            displayUserTable(inactiveUsers);
 
         } catch (SQLException e) {
             System.out.println("Database error: " + e.getMessage());
         }
     }
 
-    // View all registered users regardless of role or status
     private void viewAllUsers() {
         try {
             List<User> users = userDao.getAllUsers();
@@ -200,7 +143,152 @@ public class AdminMenu {
         }
     }
 
-    // Display users in a formatted table
+    private void updateUserAccount(User currentAdmin) {
+        try {
+            List<User> users = userDao.getAllUsers();
+
+            System.out.println();
+            System.out.println("======================================");
+            System.out.println("|         UPDATE USER ACCOUNT        |");
+            System.out.println("======================================");
+
+            if (users.isEmpty()) {
+                System.out.println("No registered users found.");
+                return;
+            }
+
+            displayUserTable(users);
+
+            int targetUserId = readIntInput(
+                    "Enter the User ID to update (0 to cancel): "
+            );
+
+            if (targetUserId == 0) {
+                System.out.println("Update cancelled.");
+                return;
+            }
+
+            User targetUser = users.stream()
+                    .filter(account -> account.userId() == targetUserId)
+                    .findFirst()
+                    .orElse(null);
+
+            if (targetUser == null) {
+                System.out.println("User ID not found.");
+                return;
+            }
+
+            if (targetUserId == currentAdmin.userId()) {
+                System.out.println(
+                        "WARNING: Modifying the currently active admin account is restricted."
+                );
+                return;
+            }
+
+            System.out.println("Selected username: " + targetUser.username());
+            System.out.println("Current role: " + targetUser.role());
+            System.out.println("Current status: " + targetUser.status());
+
+            String newRole = readValidRole();
+
+            if (newRole == null) {
+                System.out.println("Update cancelled.");
+                return;
+            }
+
+            String newStatus = readValidStatus();
+
+            if (newStatus == null) {
+                System.out.println("Update cancelled.");
+                return;
+            }
+
+            System.out.println();
+            System.out.println("New role: " + newRole);
+            System.out.println("New status: " + newStatus);
+
+            if (userDao.updateUserRoleAndStatus(
+                    targetUserId, newRole, newStatus)) {
+
+                System.out.println("User account updated successfully!");
+
+            } else {
+                System.out.println("User account could not be updated.");
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
+        }
+    }
+
+    private int readIntInput(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String input = scanner.nextLine().trim();
+
+            try {
+                return Integer.parseInt(input);
+            } catch (NumberFormatException e) {
+                System.out.println(
+                        "Invalid input. Please enter a valid number."
+                );
+            }
+        }
+    }
+
+    private String readValidRole() {
+        while (true) {
+            System.out.println();
+            System.out.println("======================================");
+            System.out.println("| Choose a new role:                 |");
+            System.out.println("| 1. Admin                           |");
+            System.out.println("| 2. Staff                           |");
+            System.out.println("| 3. Pet Owner                       |");
+            System.out.println("| 0. Cancel                          |");
+            System.out.println("======================================");
+
+            int choice = readIntInput("Enter your choice: ");
+
+            switch (choice) {
+                case 1:
+                    return "Admin";
+                case 2:
+                    return "Staff";
+                case 3:
+                    return "Pet Owner";
+                case 0:
+                    return null;
+                default:
+                    System.out.println("Invalid role. Please try again.");
+            }
+        }
+    }
+
+    private String readValidStatus() {
+        while (true) {
+            System.out.println();
+            System.out.println("======================================");
+            System.out.println("| Choose a new status:               |");
+            System.out.println("| 1. Active                          |");
+            System.out.println("| 2. Inactive                        |");
+            System.out.println("| 0. Cancel                          |");
+            System.out.println("======================================");
+
+            int choice = readIntInput("Enter your choice: ");
+
+            switch (choice) {
+                case 1:
+                    return "Active";
+                case 2:
+                    return "Inactive";
+                case 0:
+                    return null;
+                default:
+                    System.out.println("Invalid status. Please try again.");
+            }
+        }
+    }
+
     private void displayUserTable(List<User> users) {
         String border = "+-------+-----------------+--------------+------------+";
 
@@ -208,10 +296,7 @@ public class AdminMenu {
 
         System.out.printf(
                 "| %-5s | %-15s | %-12s | %-10s |%n",
-                "ID",
-                "USERNAME",
-                "ROLE",
-                "STATUS"
+                "ID", "USERNAME", "ROLE", "STATUS"
         );
 
         System.out.println(border);
