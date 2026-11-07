@@ -21,7 +21,7 @@ How to Run
 Default Admin Account
 
 - Username: `admin`
-- Password: `admin123`
+- Password: `12345`
 
 Admin accounts can create Staff accounts and approve pending registrations.
 
