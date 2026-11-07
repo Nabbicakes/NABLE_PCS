@@ -13,20 +13,34 @@ import java.util.List;
 public class UserDao {
 
     public boolean usernameExists(String username) throws SQLException {
-        String sql = "SELECT 1 FROM Users WHERE username = ?";
+        String sql = "SELECT COUNT(*) FROM Users WHERE username = ?";
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setString(1, username);
 
-            try (ResultSet result = statement.executeQuery()) {
-                return result.next();
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() && resultSet.getInt(1) > 0;
             }
         }
     }
 
+    // Register a user with the correct role and status.
     public boolean registerUser(User user) throws SQLException {
+
+        String role = normalizeRole(user.role());
+        String status = normalizeStatus(role, user.status());
+
+        if (role == null || status == null) {
+            return false;
+        }
+
+        // Prevent registration of another Admin account.
+        if (role.equals("Admin") && hasAdminAccount()) {
+            return false;
+        }
+
         String sql = """
                 INSERT INTO Users (username, password, role, status)
                 VALUES (?, ?, ?, ?)
@@ -39,8 +53,8 @@ public class UserDao {
 
             statement.setString(1, user.username());
             statement.setString(2, hashedPassword);
-            statement.setString(3, user.role());
-            statement.setString(4, user.status());
+            statement.setString(3, role);
+            statement.setString(4, status);
 
             return statement.executeUpdate() == 1;
         }
@@ -54,40 +68,55 @@ public class UserDao {
         }
 
         User staff = new User(
-                0,
-                username,
-                password,
-                "Staff",
-                "APPROVED"
+                0, username, password, "Staff", "Approved"
         );
 
         return registerUser(staff);
     }
 
-    public User loginUser(String username, String password)
-            throws SQLException {
+    // Login only when the account has the correct approved status.
+    public User loginUser(String username, String password) throws SQLException {
 
-        String sql = "SELECT * FROM Users WHERE username = ?";
+        String sql = """
+                SELECT user_id, username, password, role, status
+                FROM Users
+                WHERE username = ?
+                """;
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setString(1, username);
 
-            try (ResultSet result = statement.executeQuery()) {
-                if (result.next()) {
-                    String hashedPassword = result.getString("password");
-                    String status = result.getString("status");
+            try (ResultSet resultSet = statement.executeQuery()) {
 
-                    if (PasswordUtil.checkPassword(password, hashedPassword)
-                            && "APPROVED".equalsIgnoreCase(status)) {
+                if (resultSet.next()) {
+
+                    String storedPassword = resultSet.getString("password");
+                    String role = resultSet.getString("role");
+                    String status = resultSet.getString("status");
+
+                    boolean allowedStatus = false;
+
+                    if (role != null && status != null) {
+
+                        if (role.equalsIgnoreCase("Admin")) {
+                            allowedStatus = status.equalsIgnoreCase("Active");
+                        } else if (role.equalsIgnoreCase("Staff")
+                                || role.equalsIgnoreCase("Pet Owner")) {
+                            allowedStatus = status.equalsIgnoreCase("Approved");
+                        }
+                    }
+
+                    if (allowedStatus &&
+                            PasswordUtil.checkPassword(password, storedPassword)) {
 
                         return new User(
-                                result.getInt("user_id"),
-                                result.getString("username"),
-                                hashedPassword,
-                                result.getString("role"),
-                                status
+                                resultSet.getInt("user_id"),
+                                resultSet.getString("username"),
+                                storedPassword,
+                                role,
+                                normalizeStatus(role, status)
                         );
                     }
                 }
@@ -108,15 +137,17 @@ public class UserDao {
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet result = statement.executeQuery()) {
+             ResultSet resultSet = statement.executeQuery()) {
 
-            while (result.next()) {
+            while (resultSet.next()) {
+                String role = resultSet.getString("role");
+
                 users.add(new User(
-                        result.getInt("user_id"),
-                        result.getString("username"),
-                        result.getString("password"),
-                        result.getString("role"),
-                        result.getString("status")
+                        resultSet.getInt("user_id"),
+                        resultSet.getString("username"),
+                        resultSet.getString("password"),
+                        role,
+                        normalizeStatus(role, resultSet.getString("status"))
                 ));
             }
         }
@@ -130,21 +161,23 @@ public class UserDao {
         String sql = """
                 SELECT user_id, username, password, role, status
                 FROM Users
-                WHERE UPPER(status) = 'PENDING'
+                WHERE LOWER(status) = 'pending'
                 ORDER BY user_id
                 """;
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet result = statement.executeQuery()) {
+             ResultSet resultSet = statement.executeQuery()) {
 
-            while (result.next()) {
+            while (resultSet.next()) {
+                String role = resultSet.getString("role");
+
                 users.add(new User(
-                        result.getInt("user_id"),
-                        result.getString("username"),
-                        result.getString("password"),
-                        result.getString("role"),
-                        result.getString("status")
+                        resultSet.getInt("user_id"),
+                        resultSet.getString("username"),
+                        resultSet.getString("password"),
+                        role,
+                        normalizeStatus(role, resultSet.getString("status"))
                 ));
             }
         }
@@ -153,10 +186,13 @@ public class UserDao {
     }
 
     public boolean approveUser(int userId) throws SQLException {
+
         String sql = """
                 UPDATE Users
-                SET status = 'APPROVED'
-                WHERE user_id = ? AND UPPER(status) = 'PENDING'
+                SET status = 'Approved'
+                WHERE user_id = ?
+                AND LOWER(status) = 'pending'
+                AND LOWER(role) IN ('staff', 'pet owner')
                 """;
 
         try (Connection connection = DatabaseConnection.getConnection();
@@ -168,44 +204,167 @@ public class UserDao {
         }
     }
 
+    // Only Staff and Pet Owner accounts can be updated.
+    public boolean updateUserRoleAndStatus(
+            int userId,
+            String newRole,
+            String newStatus
+    ) throws SQLException {
+
+        String role = normalizeRole(newRole);
+
+        if (role == null || role.equals("Admin")) {
+            return false;
+        }
+
+        String status = normalizeStatus(role, newStatus);
+
+        if (status == null) {
+            return false;
+        }
+
+        String sql = """
+                UPDATE Users
+                SET role = ?, status = ?
+                WHERE user_id = ?
+                AND LOWER(role) != 'admin'
+                """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, role);
+            statement.setString(2, status);
+            statement.setInt(3, userId);
+
+            return statement.executeUpdate() == 1;
+        }
+    }
+
+    // Check whether an Admin account already exists.
+    private boolean hasAdminAccount() throws SQLException {
+
+        String sql = """
+                SELECT COUNT(*)
+                FROM Users
+                WHERE LOWER(role) = 'admin'
+                """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+
+            return resultSet.next() && resultSet.getInt(1) > 0;
+        }
+    }
+
+    // Normalize role names.
+    private String normalizeRole(String role) {
+
+        if (role == null) {
+            return null;
+        }
+
+        if (role.equalsIgnoreCase("Admin")) {
+            return "Admin";
+        }
+
+        if (role.equalsIgnoreCase("Staff")) {
+            return "Staff";
+        }
+
+        if (role.equalsIgnoreCase("Pet Owner")) {
+            return "Pet Owner";
+        }
+
+        return null;
+    }
+
+    // Admin = Active; Staff and Pet Owner = Approved or Pending.
+    private String normalizeStatus(String role, String status) {
+
+        if (role == null || status == null) {
+            return null;
+        }
+
+        if (role.equalsIgnoreCase("Admin")) {
+            return status.equalsIgnoreCase("Active") ? "Active" : null;
+        }
+
+        if (role.equalsIgnoreCase("Staff")
+                || role.equalsIgnoreCase("Pet Owner")) {
+
+            if (status.equalsIgnoreCase("Approved")) {
+                return "Approved";
+            }
+
+            if (status.equalsIgnoreCase("Pending")) {
+                return "Pending";
+            }
+        }
+
+        return null;
+    }
+
+    // Create the single temporary Admin account.
     public boolean createTemporaryAdmin() throws SQLException {
+
         String username = "admin";
+        String password = "admin123";
+
+        String checkSql = """
+                SELECT user_id
+                FROM Users
+                WHERE LOWER(role) = 'admin'
+                LIMIT 1
+                """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(checkSql);
+             ResultSet resultSet = statement.executeQuery()) {
+
+            if (resultSet.next()) {
+
+                int adminId = resultSet.getInt("user_id");
+
+                String updateSql = """
+                        UPDATE Users
+                        SET status = 'Active'
+                        WHERE user_id = ?
+                        """;
+
+                try (PreparedStatement updateStatement =
+                             connection.prepareStatement(updateSql)) {
+
+                    updateStatement.setInt(1, adminId);
+                    updateStatement.executeUpdate();
+                }
+
+                return true;
+            }
+        }
 
         if (usernameExists(username)) {
 
             String updateSql = """
                     UPDATE Users
-                    SET status = ?, role = ?
+                    SET role = 'Admin', status = 'Active'
                     WHERE username = ?
                     """;
 
             try (Connection connection = DatabaseConnection.getConnection();
                  PreparedStatement statement = connection.prepareStatement(updateSql)) {
 
-                statement.setString(1, "APPROVED");
-                statement.setString(2, "Admin");
-                statement.setString(3, username);
-
-                return statement.executeUpdate() > 0;
-            }
-
-        } else {
-
-            String insertSql = """
-                    INSERT INTO Users (username, password, role, status)
-                    VALUES (?, ?, ?, ?)
-                    """;
-
-            try (Connection connection = DatabaseConnection.getConnection();
-                 PreparedStatement statement = connection.prepareStatement(insertSql)) {
-
                 statement.setString(1, username);
-                statement.setString(2, PasswordUtil.hashPassword("12345"));
-                statement.setString(3, "Admin");
-                statement.setString(4, "APPROVED");
 
                 return statement.executeUpdate() == 1;
             }
         }
+
+        User admin = new User(
+                0, username, password, "Admin", "Active"
+        );
+
+        return registerUser(admin);
     }
 }

@@ -2,6 +2,7 @@
 package dao;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -13,22 +14,11 @@ public class DatabaseInitializer {
              Statement statement = connection.createStatement()) {
 
             statement.execute("""
-    CREATE TABLE IF NOT EXISTS Pet_Owners (
-        owner_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        owner_name TEXT NOT NULL,
-        contact TEXT,
-        address TEXT
-    )
-    """);
-
-            statement.execute("""
                 CREATE TABLE IF NOT EXISTS Pet_Owners (
                     owner_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL UNIQUE,
                     owner_name TEXT NOT NULL,
                     contact TEXT,
-                    address TEXT,
-                    FOREIGN KEY (user_id) REFERENCES Users(user_id)
+                    address TEXT
                 )
                 """);
 
@@ -53,9 +43,12 @@ public class DatabaseInitializer {
                     specialization TEXT,
                     contact TEXT,
                     availability TEXT,
-                    status TEXT NOT NULL
+                    status TEXT NOT NULL,
+                    working_days TEXT
                 )
                 """);
+
+            ensureWorkingDaysColumn(connection);
 
             statement.execute("""
                 CREATE TABLE IF NOT EXISTS Appointments (
@@ -99,15 +92,44 @@ public class DatabaseInitializer {
                 """);
 
             statement.execute("""
-                CREATE TABLE IF NOT EXISTS Activity_Logs (
-                    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                CREATE TABLE IF NOT EXISTS activity_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
-                    action TEXT NOT NULL,
-                    details TEXT,
-                    log_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    action_type TEXT NOT NULL,
+                    description TEXT,
+                    timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES Users(user_id)
+                        ON DELETE CASCADE
                 )
                 """);
+        }
+    }
+
+    private static void ensureWorkingDaysColumn(Connection connection)
+            throws SQLException {
+
+        boolean columnExists = false;
+
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet =
+                     statement.executeQuery("PRAGMA table_info(Veterinarians)")) {
+
+            while (resultSet.next()) {
+                if ("working_days".equalsIgnoreCase(
+                        resultSet.getString("name"))) {
+                    columnExists = true;
+                    break;
+                }
+            }
+        }
+
+        if (!columnExists) {
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("""
+                    ALTER TABLE Veterinarians
+                    ADD COLUMN working_days TEXT
+                    """);
+            }
         }
     }
 }
