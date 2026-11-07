@@ -76,13 +76,13 @@ public class Authentication {
                     username,
                     password,
                     "Pet Owner",
-                    "Inactive"
+                    "Pending"
             );
 
             if (userDao.registerUser(user)) {
                 System.out.println("Registration successful!");
                 System.out.println(
-                        "Your account is inactive. Please wait for Admin approval."
+                        "Your account is pending. Please wait for Admin approval."
                 );
             } else {
                 System.out.println("Registration failed.");

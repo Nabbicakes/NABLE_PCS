@@ -12,14 +12,17 @@ import java.util.List;
 
 public class ActivityLogDao {
 
-    // Save a new activity log
+    // Save a new activity log with the next available ID
     public void logAction(int userId, String actionType,
                           String description) throws SQLException {
 
         String sql = """
             INSERT INTO activity_logs
-            (user_id, action_type, description)
-            VALUES (?, ?, ?)
+            (id, user_id, action_type, description)
+            VALUES (
+                (SELECT COALESCE(MAX(id), 0) + 1 FROM activity_logs),
+                ?, ?, ?
+            )
             """;
 
         try (Connection connection = DatabaseConnection.getConnection();
@@ -41,7 +44,7 @@ public class ActivityLogDao {
         String sql = """
             SELECT id, user_id, action_type, description, timestamp
             FROM activity_logs
-            ORDER BY timestamp DESC
+            ORDER BY timestamp DESC, id DESC
             """;
 
         try (Connection connection = DatabaseConnection.getConnection();
@@ -75,7 +78,7 @@ public class ActivityLogDao {
             SELECT id, user_id, action_type, description, timestamp
             FROM activity_logs
             WHERE user_id = ?
-            ORDER BY timestamp DESC
+            ORDER BY timestamp DESC, id DESC
             """;
 
         try (Connection connection = DatabaseConnection.getConnection();
