@@ -52,8 +52,8 @@ public class PaymentDao {
         return appointments;
     }
 
-    // Record a payment
-    public void recordPayment(
+    // Record a payment and return its generated Payment ID
+    public int recordPayment(
             int appointmentId,
             double amount,
             String paymentStatus,
@@ -69,7 +69,6 @@ public class PaymentDao {
             throw new SQLException("Payment status must be Paid or Unpaid.");
         }
 
-        // Verify that the appointment exists and is completed
         String checkSql = """
             SELECT status
             FROM Appointments
@@ -95,12 +94,13 @@ public class PaymentDao {
             }
         }
 
-        // Insert payment record
         String insertSql = """
             INSERT INTO Payments
             (appointment_id, amount, payment_date, payment_status)
             VALUES (?, ?, ?, ?)
             """;
+
+        int paymentId;
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(insertSql)) {
@@ -108,10 +108,23 @@ public class PaymentDao {
             statement.setInt(1, appointmentId);
             statement.setDouble(2, amount);
             statement.setString(3, LocalDate.now().toString());
-            statement.setString(4,
-                    paymentStatus.equalsIgnoreCase("Paid") ? "Paid" : "Unpaid");
+            statement.setString(
+                    4,
+                    paymentStatus.equalsIgnoreCase("Paid") ? "Paid" : "Unpaid"
+            );
 
             statement.executeUpdate();
+
+            try (PreparedStatement idStatement =
+                         connection.prepareStatement("SELECT last_insert_rowid()");
+                 ResultSet resultSet = idStatement.executeQuery()) {
+
+                if (!resultSet.next()) {
+                    throw new SQLException("Unable to retrieve Payment ID.");
+                }
+
+                paymentId = resultSet.getInt(1);
+            }
         }
 
         // Record activity log
@@ -131,6 +144,53 @@ public class PaymentDao {
         }
 
         System.out.println("Payment recorded successfully!");
+
+        return paymentId;
+    }
+
+    // Retrieve payment details for receipt generation
+    public String[] getPaymentReceipt(int paymentId) throws SQLException {
+
+        String sql = """
+            SELECT pay.payment_id,
+                   pay.appointment_id,
+                   p.pet_name,
+                   a.appointment_date,
+                   a.appointment_time,
+                   pay.amount,
+                   pay.payment_date,
+                   pay.payment_status
+            FROM Payments pay
+            JOIN Appointments a
+                ON pay.appointment_id = a.appointment_id
+            JOIN Pets p
+                ON a.pet_id = p.pet_id
+            WHERE pay.payment_id = ?
+            """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, paymentId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+
+                if (!resultSet.next()) {
+                    throw new SQLException("Payment receipt not found.");
+                }
+
+                return new String[]{
+                        String.valueOf(resultSet.getInt("payment_id")),
+                        String.valueOf(resultSet.getInt("appointment_id")),
+                        resultSet.getString("pet_name"),
+                        resultSet.getString("appointment_date"),
+                        resultSet.getString("appointment_time"),
+                        String.format("%.2f", resultSet.getDouble("amount")),
+                        resultSet.getString("payment_date"),
+                        resultSet.getString("payment_status")
+                };
+            }
+        }
     }
 
     // Get all payment records

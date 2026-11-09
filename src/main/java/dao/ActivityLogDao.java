@@ -105,4 +105,16 @@ public class ActivityLogDao {
 
         return logs;
     }
+
+    // Delete all existing activity logs
+    public void clearAllLogs() throws SQLException {
+
+        String sql = "DELETE FROM activity_logs";
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.executeUpdate();
+        }
+    }
 }

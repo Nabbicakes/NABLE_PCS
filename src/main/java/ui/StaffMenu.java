@@ -784,13 +784,42 @@ public class StaffMenu {
                 return;
             }
 
-            paymentDao.recordPayment(
+            int paymentId = paymentDao.recordPayment(
                     appointmentId, amount, paymentStatus, user.userId()
             );
+
+            if ("Paid".equalsIgnoreCase(paymentStatus)) {
+                String[] receipt = paymentDao.getPaymentReceipt(paymentId);
+                displayPaymentReceipt(receipt);
+            } else {
+                System.out.println(
+                        "Payment saved as Unpaid. No paid receipt was generated."
+                );
+            }
 
         } catch (SQLException e) {
             System.out.println("Error recording payment: " + e.getMessage());
         }
+    }
+
+    // Display the payment receipt
+    private void displayPaymentReceipt(String[] receipt) {
+        System.out.println();
+        System.out.println("========================================");
+        System.out.println("|          PET CLINIC RECEIPT          |");
+        System.out.println("========================================");
+        System.out.println("| Payment ID: " + receipt[0]);
+        System.out.println("| Appointment ID: " + receipt[1]);
+        System.out.println("| Pet Name: " + receipt[2]);
+        System.out.println("| Appointment Date: " + receipt[3]);
+        System.out.println("| Appointment Time: " + receipt[4]);
+        System.out.println("----------------------------------------");
+        System.out.println("| Payment Date: " + receipt[6]);
+        System.out.printf("| Amount Paid: PHP %s%n", receipt[5]);
+        System.out.println("| Payment Status: " + receipt[7]);
+        System.out.println("========================================");
+        System.out.println("|       THANK YOU FOR YOUR VISIT!      |");
+        System.out.println("========================================");
     }
 
     private void viewAllPayments() {
@@ -842,16 +871,16 @@ public class StaffMenu {
 
             if (paymentId <= 0) return;
 
-            boolean paymentExists = false;
+            String previousStatus = null;
 
             for (String[] payment : payments) {
                 if (Integer.parseInt(payment[0]) == paymentId) {
-                    paymentExists = true;
+                    previousStatus = payment[4];
                     break;
                 }
             }
 
-            if (!paymentExists) {
+            if (previousStatus == null) {
                 System.out.println("Invalid Payment ID.");
                 return;
             }
@@ -879,6 +908,21 @@ public class StaffMenu {
             paymentDao.updatePaymentStatus(
                     paymentId, newStatus, user.userId()
             );
+
+            // Show the receipt only when the status changes to Paid.
+            if ("Paid".equalsIgnoreCase(newStatus)
+                    && !"Paid".equalsIgnoreCase(previousStatus)) {
+
+                String[] receipt = paymentDao.getPaymentReceipt(paymentId);
+
+                if (receipt != null) {
+                    displayPaymentReceipt(receipt);
+                } else {
+                    System.out.println(
+                            "Payment was updated, but the receipt could not be retrieved."
+                    );
+                }
+            }
 
         } catch (SQLException e) {
             System.out.println("Error updating payment status: " + e.getMessage());
@@ -1093,7 +1137,6 @@ public class StaffMenu {
                 return;
             }
 
-            // Fixed column widths
             int[] widths = {5, 7, 13, 20, 25, 30};
 
             System.out.println();

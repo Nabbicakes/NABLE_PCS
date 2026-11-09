@@ -34,8 +34,9 @@ public class AdminMenu {
             System.out.println("| 3. View All System Users           |");
             System.out.println("| 4. Update User Role and Status     |");
             System.out.println("| 5. View Activity Logs              |");
-            System.out.println("| 6. Logout                          |");
-            System.out.println("| 7. Exit                            |");
+            System.out.println("| 6. Clear Activity Logs             |");
+            System.out.println("| 7. Logout                          |");
+            System.out.println("| 8. Exit                            |");
             System.out.println("======================================");
             System.out.print("Choose an option: ");
 
@@ -63,6 +64,10 @@ public class AdminMenu {
                     break;
 
                 case "6":
+                    clearActivityLogs(user);
+                    break;
+
+                case "7":
                     try {
                         activityLogDao.logAction(
                                 user.userId(),
@@ -84,7 +89,7 @@ public class AdminMenu {
 
                     return;
 
-                case "7":
+                case "8":
                     System.out.println(
                             "Thank you for using Pet Clinic System!"
                     );
@@ -367,6 +372,57 @@ public class AdminMenu {
 
         } catch (SQLException e) {
             System.out.println("Database error: " + e.getMessage());
+        }
+    }
+
+    // Clear all activity logs after Admin confirmation
+    private void clearActivityLogs(User admin) {
+        System.out.println();
+        System.out.println("======================================");
+        System.out.println("|         CLEAR ACTIVITY LOGS        |");
+        System.out.println("======================================");
+        System.out.println("WARNING: This action will permanently");
+        System.out.println("delete all existing activity logs.");
+        System.out.println();
+        System.out.println("A new audit entry will be created");
+        System.out.println("to record this clearing action.");
+        System.out.println("======================================");
+        System.out.print("Are you sure you want to continue? (Y/N): ");
+
+        String confirmation = scanner.nextLine().trim();
+
+        if (!confirmation.equalsIgnoreCase("Y")) {
+            System.out.println("Clear activity logs cancelled.");
+            return;
+        }
+
+        try {
+            activityLogDao.clearAllLogs();
+
+            System.out.println("Existing activity logs cleared successfully!");
+
+            try {
+                activityLogDao.logAction(
+                        admin.userId(),
+                        "ACTIVITY_LOGS_CLEARED",
+                        "Admin " + admin.username()
+                                + " (ID: " + admin.userId()
+                                + ") cleared all previous activity logs."
+                );
+
+                System.out.println("Clear activity logs action recorded.");
+
+            } catch (SQLException e) {
+                System.out.println(
+                        "WARNING: Logs were cleared, but the audit entry "
+                                + "could not be saved: " + e.getMessage()
+                );
+            }
+
+        } catch (SQLException e) {
+            System.out.println(
+                    "Unable to clear activity logs: " + e.getMessage()
+            );
         }
     }
 
